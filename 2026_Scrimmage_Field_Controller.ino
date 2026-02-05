@@ -8,22 +8,23 @@
 //ENDGAME: both alliances enabled for 30 seconds
 //-------------------------------------------//
 
-//----------PIN-DECLARATIONS----------//
+
 #define RED_PIN 2 //pin for red alliance
 #define BLUE_PIN 3 //pin for blue alliance
 
+#define START_BUTTON_PIN 4 //pin for match start button
 
-//----------SETUP----------//
+
 void setup() {
   pinMode(RED_PIN, OUTPUT);
   pinMode(BLUE_PIN, OUTPUT);
+  pinMode(START_BUTTON_PIN, INPUT_PULLUP);
 
   delaySeconds(3);
   matchSequence();
 }
 
 
-//----------MAIN-LOOP----------//
 void loop() {
   delaySeconds(1);
 }
@@ -80,6 +81,7 @@ void enableAlliances() {
   digitalWrite(BLUE_PIN, 1);
 }
 
+//delay in seconds
 void delaySeconds(int seconds) {
   delay(seconds * 1000);
 }
