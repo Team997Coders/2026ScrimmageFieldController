@@ -1,8 +1,5 @@
 #include <Arduino.h>
 
-#define RED_PIN 2 //pin for red alliance
-#define BLUE_PIN 3 //pin for blue alliance
-
 //----------MATCH-SCHEDULE-REFERENCE----------//
 //AUTO: both alliances enabled for 20 seconds
 //TRANSITION: both alliances disabled for 10 seconds
@@ -11,6 +8,12 @@
 //ENDGAME: both alliances enabled for 30 seconds
 //-------------------------------------------//
 
+//----------PIN-DECLARATIONS----------//
+#define RED_PIN 2 //pin for red alliance
+#define BLUE_PIN 3 //pin for blue alliance
+
+
+//----------SETUP----------//
 void setup() {
   pinMode(RED_PIN, OUTPUT);
   pinMode(BLUE_PIN, OUTPUT);
@@ -19,11 +22,14 @@ void setup() {
   matchSequence();
 }
 
+
+//----------MAIN-LOOP----------//
 void loop() {
   delaySeconds(1);
 }
 
-//match sequence
+
+//----------SEQUENCES----------//
 void matchSequence() {
   //auto
   enableAlliances();
@@ -51,14 +57,8 @@ void matchSequence() {
   delaySeconds(30);
 }
 
-void delaySeconds(int seconds) {
-  delay(seconds * 1000);
-}
 
-
-
-//----------SHORTCUTS----------//
-
+//----------FUNCTION-DECLARATIONS----------//
 //enable red alliance side
 void redAlliance() {
   digitalWrite(RED_PIN, 1);
@@ -79,6 +79,11 @@ void enableAlliances() {
   digitalWrite(RED_PIN, 1);
   digitalWrite(BLUE_PIN, 1);
 }
+
+void delaySeconds(int seconds) {
+  delay(seconds * 1000);
+}
+
 
 
 //----------TESTING----------//
