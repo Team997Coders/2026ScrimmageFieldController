@@ -1,12 +1,80 @@
+#include <Arduino.h>
+
 #define RED_PIN 2 //pin for red alliance
 #define BLUE_PIN 3 //pin for blue alliance
 
 void setup() {
   pinMode(RED_PIN, OUTPUT);
   pinMode(BLUE_PIN, OUTPUT);
+
+  delaySeconds(3);
+  matchSequence();
 }
 
 void loop() {
+  delaySeconds(1);
+}
+
+//match sequence
+void matchSequence() {
+  //auto
+  enableAlliances();
+  delaySeconds(20);
+
+  //transition
+  delaySeconds(10);
+
+  //teleop
+  bool redFirst = random(0, 1);
+  for (int i = 0; i < 4; i++) {
+    if (redFirst) {
+      redAlliance();
+    } else {
+      blueAlliance();
+    }
+
+    delaySeconds(25);
+
+    redFirst = !redFirst;
+  }
+
+  //endgame
+  enableAlliances();
+  delaySeconds(30);
+}
+
+void delaySeconds(int seconds) {
+  delay(seconds * 1000);
+}
+
+
+
+//----------SHORTCUTS----------//
+
+//enable red alliance side
+void redAlliance() {
+  digitalWrite(RED_PIN, 1);
+  digitalWrite(BLUE_PIN, 0);
+}
+//enable blue alliance side
+void blueAlliance() {
+  digitalWrite(RED_PIN, 0);
+  digitalWrite(BLUE_PIN, 1);
+}
+//disable both sides
+void disableAlliances() {
+  digitalWrite(RED_PIN, 0);
+  digitalWrite(BLUE_PIN, 0);
+}
+//enable both sides
+void enableAlliances() {
+  digitalWrite(RED_PIN, 1);
+  digitalWrite(BLUE_PIN, 1);
+}
+
+
+//----------TESTING----------//
+void test() {
   digitalWrite(RED_PIN, 0);
   digitalWrite(BLUE_PIN, 1);
 
