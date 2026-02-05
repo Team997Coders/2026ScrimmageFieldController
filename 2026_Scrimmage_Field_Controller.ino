@@ -3,6 +3,14 @@
 #define RED_PIN 2 //pin for red alliance
 #define BLUE_PIN 3 //pin for blue alliance
 
+//----------MATCH-SCHEDULE-REFERENCE----------//
+//AUTO: both alliances enabled for 20 seconds
+//TRANSITION: both alliances disabled for 10 seconds
+//TELEOP: each alliance enabled for 25 seconds, alternating, total of 4 cycles
+  //(RED first or BLUE first is random for the purposes of scrimmage, though determined by the higher score in auto in an official match)
+//ENDGAME: both alliances enabled for 30 seconds
+//-------------------------------------------//
+
 void setup() {
   pinMode(RED_PIN, OUTPUT);
   pinMode(BLUE_PIN, OUTPUT);
