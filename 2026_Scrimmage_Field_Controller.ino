@@ -14,48 +14,124 @@
 
 #define START_BUTTON_PIN 4 //pin for match start button
 
+//----------STATE-VARIABLES----------//
+enum SequenceState { IDLE, RUNNING };
+SequenceState sequenceState = IDLE;
+
+unsigned long sequenceStartTime = 0;
+unsigned long stageStartTime = 0;
+int currentStage = 0;  // 0: auto, 1: transition, 2-9: teleop, 10: endgame
+bool redFirst = false;
+
+unsigned long lastButtonPressTime = 0;
+const unsigned long DEBOUNCE_DELAY = 200;  // milliseconds
+
 
 void setup() {
   pinMode(RED_PIN, OUTPUT);
   pinMode(BLUE_PIN, OUTPUT);
   pinMode(START_BUTTON_PIN, INPUT_PULLUP);
-
-  delaySeconds(3);
-  matchSequence();
+  
+  disableAlliances();
 }
 
 
 void loop() {
-  delaySeconds(1);
+  // Check button with debouncing
+  checkButton();
+  
+  // Run sequence if it's active
+  if (sequenceState == RUNNING) {
+    updateSequence();
+  }
 }
 
 
 //----------SEQUENCES----------//
-void matchSequence() {
-  //auto
-  enableAlliances();
-  delaySeconds(20);
 
-  //transition
-  delaySeconds(10);
-
-  //teleop
-  bool redFirst = random(0, 1);
-  for (int i = 0; i < 4; i++) {
-    if (redFirst) {
-      redAlliance();
-    } else {
-      blueAlliance();
+// Handle button press with debouncing
+void checkButton() {
+  if (digitalRead(START_BUTTON_PIN) == LOW) {
+    unsigned long currentTime = millis();
+    
+    // Debounce: only register press if enough time has passed since last press
+    if (currentTime - lastButtonPressTime >= DEBOUNCE_DELAY) {
+      lastButtonPressTime = currentTime;
+      
+      if (sequenceState == IDLE) {
+        // Start the sequence
+        sequenceState = RUNNING;
+        currentStage = 0;
+        redFirst = random(0, 2);  // Fixed: random can return 0 or 1
+        sequenceStartTime = millis();
+        stageStartTime = millis();
+      } else {
+        // Cancel/reset the sequence
+        sequenceState = IDLE;
+        currentStage = 0;
+        disableAlliances();
+      }
     }
-
-    delaySeconds(25);
-
-    redFirst = !redFirst;
   }
+}
 
-  //endgame
-  enableAlliances();
-  delaySeconds(30);
+// Non-blocking sequence update
+void updateSequence() {
+  unsigned long elapsedTime = millis() - stageStartTime;
+  
+  switch (currentStage) {
+    case 0:  // AUTO - 20 seconds
+      enableAlliances();
+      if (elapsedTime >= 20000) {
+        currentStage = 1;
+        stageStartTime = millis();
+      }
+      break;
+      
+    case 1:  // TRANSITION - 10 seconds
+      disableAlliances();
+      if (elapsedTime >= 10000) {
+        currentStage = 2;
+        stageStartTime = millis();
+      }
+      break;
+      
+    case 2:  // TELEOP 1
+    case 4:  // TELEOP 3
+      if (redFirst == (currentStage == 2)) {
+        redAlliance();
+      } else {
+        blueAlliance();
+      }
+      if (elapsedTime >= 25000) {
+        currentStage++;
+        stageStartTime = millis();
+      }
+      break;
+      
+    case 3:  // TELEOP 2
+    case 5:  // TELEOP 4
+      if (redFirst == (currentStage == 2)) {
+        blueAlliance();
+      } else {
+        redAlliance();
+      }
+      if (elapsedTime >= 25000) {
+        currentStage++;
+        stageStartTime = millis();
+      }
+      break;
+      
+    case 6:  // ENDGAME - 30 seconds
+      enableAlliances();
+      if (elapsedTime >= 30000) {
+        // Sequence complete
+        sequenceState = IDLE;
+        currentStage = 0;
+        disableAlliances();
+      }
+      break;
+  }
 }
 
 
@@ -79,11 +155,6 @@ void disableAlliances() {
 void enableAlliances() {
   digitalWrite(RED_PIN, 1);
   digitalWrite(BLUE_PIN, 1);
-}
-
-//delay in seconds
-void delaySeconds(int seconds) {
-  delay(seconds * 1000);
 }
 
 
