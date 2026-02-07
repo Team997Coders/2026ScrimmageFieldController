@@ -10,10 +10,10 @@ const unsigned long AUTO_TIME       = 20000;
 const unsigned long TRANSITION_TIME = 10000;
 const unsigned long TELEOP_TIME     = 25000;
 const unsigned long ENDGAME_TIME    = 30000;
-const unsigned long DEBOUNCE_DELAY  = 500;
 
-const unsigned long WARNING_TIME    = 3000;   // last 3 seconds
-const unsigned long BLINK_INTERVAL  = 500;    // blink rate
+const unsigned long DEBOUNCE_DELAY  = 50;     // real debounce now
+const unsigned long WARNING_TIME    = 3000;
+const unsigned long BLINK_INTERVAL  = 500;
 
 // ---------- MATCH STATE ----------
 enum MatchState {
@@ -28,11 +28,15 @@ MatchState matchState = IDLE;
 
 // ---------- STATE VARIABLES ----------
 unsigned long stageStartTime = 0;
-unsigned long lastButtonTime = 0;
 
 bool redFirst = false;
 bool redTurn  = false;
 int  teleopCycle = 0;
+
+// ---------- BUTTON STATE ----------
+bool lastButtonReading = HIGH;
+bool buttonState       = HIGH;
+unsigned long lastDebounceTime = 0;
 
 // ---------- FUNCTION DECLARATIONS ----------
 void startMatch();
@@ -60,15 +64,27 @@ void setup() {
 
 // ---------- LOOP ----------
 void loop() {
-  if (digitalRead(START_BUTTON_PIN) == LOW) {
-    unsigned long now = millis();
-    if (now - lastButtonTime > DEBOUNCE_DELAY) {
-      lastButtonTime = now;
+  bool reading = digitalRead(START_BUTTON_PIN);
 
-      if (matchState == IDLE) startMatch();
-      else resetMatch();
+  // Detect change
+  if (reading != lastButtonReading) {
+    lastDebounceTime = millis();
+  }
+
+  // Accept new stable state
+  if ((millis() - lastDebounceTime) > DEBOUNCE_DELAY) {
+    if (reading != buttonState) {
+      buttonState = reading;
+
+      // Trigger ONLY on press (HIGH -> LOW)
+      if (buttonState == LOW) {
+        if (matchState == IDLE) startMatch();
+        else resetMatch();
+      }
     }
   }
+
+  lastButtonReading = reading;
 
   if (matchState != IDLE) {
     updateMatch();
@@ -106,13 +122,12 @@ void updateMatch() {
       break;
 
     case TRANSITION:
-      // Blink the alliance that will be disabled first
       if (redFirst) {
         blinkBlue();
-        digitalWriteInverted(RED_PIN, 1);  // keep red solid
+        digitalWriteInverted(RED_PIN, 1);
       } else {
         blinkRed();
-        digitalWriteInverted(BLUE_PIN, 1); // keep blue solid
+        digitalWriteInverted(BLUE_PIN, 1);
       }
 
       if (elapsed >= TRANSITION_TIME) {
@@ -129,16 +144,12 @@ void updateMatch() {
         if (warning) {
           blinkRed();
           digitalWriteInverted(BLUE_PIN, 0);
-        } else {
-          redAlliance();
-        }
+        } else redAlliance();
       } else {
         if (warning) {
           blinkBlue();
           digitalWriteInverted(RED_PIN, 0);
-        } else {
-          blueAlliance();
-        }
+        } else blueAlliance();
       }
 
       if (elapsed >= TELEOP_TIME) {
