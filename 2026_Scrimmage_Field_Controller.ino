@@ -1,100 +1,214 @@
 #include <Arduino.h>
 
-//----------MATCH-SCHEDULE-REFERENCE----------//
-//AUTO: both alliances enabled for 20 seconds
-//TRANSITION: both alliances disabled for 10 seconds
-//TELEOP: each alliance enabled for 25 seconds, alternating, total of 4 cycles
-  //(RED first or BLUE first is random for the purposes of scrimmage, though determined by the higher score in auto in an official match)
-//ENDGAME: both alliances enabled for 30 seconds
-//-------------------------------------------//
+// ---------- PIN DEFINITIONS ----------
+#define RED_PIN          2
+#define BLUE_PIN         3
+#define START_BUTTON_PIN 4
 
-//----------PIN-DECLARATIONS----------//
-#define RED_PIN 2 //pin for red alliance
-#define BLUE_PIN 3 //pin for blue alliance
+// ---------- TIMING CONSTANTS ----------
+const unsigned long AUTO_TIME       = 20000;
+const unsigned long TRANSITION_TIME = 10000;
+const unsigned long TELEOP_TIME     = 25000;
+const unsigned long ENDGAME_TIME    = 30000;
 
+const unsigned long DEBOUNCE_DELAY  = 50;     // real debounce now
+const unsigned long WARNING_TIME    = 3000;
+const unsigned long BLINK_INTERVAL  = 500;
 
-//----------SETUP----------//
+// ---------- MATCH STATE ----------
+enum MatchState {
+  IDLE,
+  AUTO,
+  TRANSITION,
+  TELEOP,
+  ENDGAME
+};
+
+MatchState matchState = IDLE;
+
+// ---------- STATE VARIABLES ----------
+unsigned long stageStartTime = 0;
+
+bool redFirst = false;
+bool redTurn  = false;
+int  teleopCycle = 0;
+
+// ---------- BUTTON STATE ----------
+bool lastButtonReading = HIGH;
+bool buttonState       = HIGH;
+unsigned long lastDebounceTime = 0;
+
+// ---------- FUNCTION DECLARATIONS ----------
+void startMatch();
+void resetMatch();
+void updateMatch();
+
+void redAlliance();
+void blueAlliance();
+void enableAlliances();
+void disableAlliances();
+
+void blinkRed();
+void blinkBlue();
+void digitalWriteInverted(int pin, bool value);
+
+// ---------- SETUP ----------
 void setup() {
   pinMode(RED_PIN, OUTPUT);
   pinMode(BLUE_PIN, OUTPUT);
+  pinMode(START_BUTTON_PIN, INPUT_PULLUP);
 
-  delaySeconds(3);
-  matchSequence();
+  randomSeed(analogRead(A0));
+  disableAlliances();
 }
 
-
-//----------MAIN-LOOP----------//
+// ---------- LOOP ----------
 void loop() {
-  delaySeconds(1);
-}
+  bool reading = digitalRead(START_BUTTON_PIN);
 
-
-//----------SEQUENCES----------//
-void matchSequence() {
-  //auto
-  enableAlliances();
-  delaySeconds(20);
-
-  //transition
-  delaySeconds(10);
-
-  //teleop
-  bool redFirst = random(0, 1);
-  for (int i = 0; i < 4; i++) {
-    if (redFirst) {
-      redAlliance();
-    } else {
-      blueAlliance();
-    }
-
-    delaySeconds(25);
-
-    redFirst = !redFirst;
+  // Detect change
+  if (reading != lastButtonReading) {
+    lastDebounceTime = millis();
   }
 
-  //endgame
-  enableAlliances();
-  delaySeconds(30);
+  // Accept new stable state
+  if ((millis() - lastDebounceTime) > DEBOUNCE_DELAY) {
+    if (reading != buttonState) {
+      buttonState = reading;
+
+      // Trigger ONLY on press (HIGH -> LOW)
+      if (buttonState == LOW) {
+        if (matchState == IDLE) startMatch();
+        else resetMatch();
+      }
+    }
+  }
+
+  lastButtonReading = reading;
+
+  if (matchState != IDLE) {
+    updateMatch();
+  }
 }
 
+// ---------- MATCH CONTROL ----------
+void startMatch() {
+  redFirst = random(0, 2);
+  redTurn  = redFirst;
+  teleopCycle = 0;
 
-//----------FUNCTION-DECLARATIONS----------//
-//enable red alliance side
+  matchState = AUTO;
+  stageStartTime = millis();
+}
+
+void resetMatch() {
+  matchState = IDLE;
+  disableAlliances();
+}
+
+// ---------- MATCH SEQUENCER ----------
+void updateMatch() {
+  unsigned long now = millis();
+  unsigned long elapsed = now - stageStartTime;
+
+  switch (matchState) {
+
+    case AUTO:
+      enableAlliances();
+      if (elapsed >= AUTO_TIME) {
+        matchState = TRANSITION;
+        stageStartTime = now;
+      }
+      break;
+
+    case TRANSITION:
+      if (redFirst) {
+        blinkBlue();
+        digitalWriteInverted(RED_PIN, 1);
+      } else {
+        blinkRed();
+        digitalWriteInverted(BLUE_PIN, 1);
+      }
+
+      if (elapsed >= TRANSITION_TIME) {
+        matchState = TELEOP;
+        stageStartTime = now;
+      }
+      break;
+
+    case TELEOP: {
+      bool warning = (teleopCycle < 3) &&
+                     (elapsed >= (TELEOP_TIME - WARNING_TIME));
+
+      if (redTurn) {
+        if (warning) {
+          blinkRed();
+          digitalWriteInverted(BLUE_PIN, 0);
+        } else redAlliance();
+      } else {
+        if (warning) {
+          blinkBlue();
+          digitalWriteInverted(RED_PIN, 0);
+        } else blueAlliance();
+      }
+
+      if (elapsed >= TELEOP_TIME) {
+        teleopCycle++;
+        redTurn = !redTurn;
+        stageStartTime = now;
+
+        if (teleopCycle >= 4) {
+          matchState = ENDGAME;
+        }
+      }
+      break;
+    }
+
+    case ENDGAME:
+      enableAlliances();
+      if (elapsed >= ENDGAME_TIME) {
+        resetMatch();
+      }
+      break;
+
+    default:
+      disableAlliances();
+      break;
+  }
+}
+
+// ---------- OUTPUT CONTROL ----------
 void redAlliance() {
-  digitalWrite(RED_PIN, 1);
-  digitalWrite(BLUE_PIN, 0);
+  digitalWriteInverted(RED_PIN, 1);
+  digitalWriteInverted(BLUE_PIN, 0);
 }
-//enable blue alliance side
+
 void blueAlliance() {
-  digitalWrite(RED_PIN, 0);
-  digitalWrite(BLUE_PIN, 1);
+  digitalWriteInverted(RED_PIN, 0);
+  digitalWriteInverted(BLUE_PIN, 1);
 }
-//disable both sides
-void disableAlliances() {
-  digitalWrite(RED_PIN, 0);
-  digitalWrite(BLUE_PIN, 0);
-}
-//enable both sides
+
 void enableAlliances() {
-  digitalWrite(RED_PIN, 1);
-  digitalWrite(BLUE_PIN, 1);
+  digitalWriteInverted(RED_PIN, 1);
+  digitalWriteInverted(BLUE_PIN, 1);
 }
 
-void delaySeconds(int seconds) {
-  delay(seconds * 1000);
+void disableAlliances() {
+  digitalWriteInverted(RED_PIN, 0);
+  digitalWriteInverted(BLUE_PIN, 0);
 }
 
+// ---------- BLINK HELPERS ----------
+void blinkRed() {
+  bool on = (millis() / BLINK_INTERVAL) % 2;
+  digitalWriteInverted(RED_PIN, on);
+}
 
+void blinkBlue() {
+  bool on = (millis() / BLINK_INTERVAL) % 2;
+  digitalWriteInverted(BLUE_PIN, on);
+}
 
-//----------TESTING----------//
-void test() {
-  digitalWrite(RED_PIN, 0);
-  digitalWrite(BLUE_PIN, 1);
-
-  delay(1000);
-
-  digitalWrite(RED_PIN, 1);
-  digitalWrite(BLUE_PIN, 0);
-
-  delay(1000);
+void digitalWriteInverted(int pin, bool value) {
+  digitalWrite(pin, !value);
 }
